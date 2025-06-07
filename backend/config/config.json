@@ -1,0 +1,23 @@
+{
+  "development": {
+    "username": "bulbazavr",
+    "password": "QWE123",
+    "database": "new_bd",
+    "host": "localhost",
+    "dialect": "postgres"
+  },
+  "test": {
+    "username": "bulbazavr",
+    "password": "QWE123",
+    "database": "new_bd",
+    "host": "localhost",
+    "dialect": "postgres"
+  },
+  "production": {
+    "username": "bulbazavr",
+    "password": "QWE123",
+    "database": "new_bd",
+    "host": "localhost",
+    "dialect": "postgres"
+  }
+}

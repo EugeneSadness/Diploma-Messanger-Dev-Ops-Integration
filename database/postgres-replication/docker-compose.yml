@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  postgres-master:
+    image: postgres:13
+    container_name: postgres-master
+    environment:
+      POSTGRES_DB: messenger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_REPLICATION_USER: replica
+      POSTGRES_REPLICATION_PASSWORD: replica_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./master/config/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./master/config/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./init-scripts:/docker-entrypoint-initdb.d
+      - postgres_master_data:/var/lib/postgresql/data
+      - postgres_archive:/var/lib/postgresql/archive
+    command: >
+      postgres
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c hba_file=/etc/postgresql/pg_hba.conf
+    networks:
+      - postgres-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  postgres-slave:
+    image: postgres:13
+    container_name: postgres-slave
+    environment:
+      POSTGRES_DB: messenger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+      PGUSER: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./slave/config/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./slave/config/pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - ./slave/config/recovery.conf:/var/lib/postgresql/recovery.conf
+      - postgres_slave_data:/var/lib/postgresql/data
+      - postgres_archive:/var/lib/postgresql/archive
+    command: >
+      bash -c "
+      if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
+        echo 'Инициализация slave из master...'
+        pg_basebackup -h postgres-master -D /var/lib/postgresql/data -U replica -W -v -P -R
+        cp /var/lib/postgresql/recovery.conf /var/lib/postgresql/data/
+      fi
+      postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+      "
+    networks:
+      - postgres-network
+    depends_on:
+      postgres-master:
+        condition: service_healthy
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@messenger.local
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - postgres-network
+    depends_on:
+      - postgres-master
+
+volumes:
+  postgres_master_data:
+  postgres_slave_data:
+  postgres_archive:
+  pgadmin_data:
+
+networks:
+  postgres-network:
+    driver: bridge
